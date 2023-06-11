@@ -7,6 +7,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 
+if (args.Length < 2)
+{
+    Console.WriteLine("You must provide the polling uri and the wled uri");
+    Environment.Exit(1);
+}
 
 using IHost host = Host.CreateDefaultBuilder(args)
      .ConfigureAppConfiguration(c => { })
