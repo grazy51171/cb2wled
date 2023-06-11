@@ -1,9 +1,7 @@
-﻿using cb2wled.Models;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
-using System.Text.Json;
 
 namespace cb2wled
 {
@@ -13,14 +11,16 @@ namespace cb2wled
         private readonly ILogger<CbEventPoller> logger;
         private readonly Uri initialUri;
         private readonly HttpClient httpClient;
+        private readonly IEnumerable<IEventHandler> eventHandlers;
 
-        public CbEventPoller(ILogger<CbEventPoller> logger, IOptions<CbPollerConfig> config, HttpClient httpClient)
+        public CbEventPoller(ILogger<CbEventPoller> logger, IOptions<CbPollerConfig> config, HttpClient httpClient, IEnumerable<IEventHandler> eventHandlers)
         {
             this.logger = logger;
 
             this.httpClient = httpClient;
+            this.eventHandlers = eventHandlers;
 
-            int timeout = 20;
+            int timeout = config.Value.Timeout;
 
             UriBuilder builder = new(config.Value.PollingUri)
             {
@@ -32,8 +32,6 @@ namespace cb2wled
         }
 
 
-
-
         protected async override Task ExecuteAsync(CancellationToken stoppingToken)
         {
 
@@ -41,14 +39,16 @@ namespace cb2wled
             while (!stoppingToken.IsCancellationRequested)
             {
                 logger.LogInformation("Polling {uri}", nextUri);
-                // var response = await httpClient.GetFromJsonAsync(
-                //    nextUri, PollSerializerContext.Default.PollResponse, stoppingToken);
-                var message = await httpClient.GetStringAsync(
-                                       nextUri, stoppingToken);
-                logger.LogInformation("Response {message}",message);
-                var response = JsonSerializer.Deserialize<PollResponse>(message, PollSerializerContext.Default.PollResponse);
+                var response = await httpClient.GetFromJsonAsync(
+                    nextUri, PollSerializerContext.Default.PollResponse, stoppingToken);
 
-                logger.LogInformation("Got {count} events", response?.Events.Count ?? 0);
+                if (response?.Events != null)
+                {
+                    foreach (var evt in response.Events)
+                    {
+                        await Task.WhenAll(eventHandlers.Select(h =>  h.Handle(evt, stoppingToken)));
+                    }
+                }
 
                 nextUri = response?.NextUrl ?? initialUri;
             }

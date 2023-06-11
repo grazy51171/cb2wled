@@ -6,6 +6,8 @@ using cb2wled;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+
+
 using IHost host = Host.CreateDefaultBuilder(args)
      .ConfigureAppConfiguration(c => { })
      .ConfigureLogging(c => { })
@@ -16,7 +18,12 @@ using IHost host = Host.CreateDefaultBuilder(args)
              config.PollingUri = new Uri(args[0]);
          });
          services.AddHostedService<CbEventPoller>()
-                .AddHttpClient<CbEventPoller>();
+                .AddSingleton<IEventHandler, WledEventHandler>();
+
+
+         services.AddHttpClient<CbEventPoller>();
+         services.AddHttpClient("wled").ConfigureHttpClient(c=> c.BaseAddress = new Uri(args[1]));
+
 
      })
      .Build();
